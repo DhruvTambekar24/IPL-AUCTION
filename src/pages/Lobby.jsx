@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getGuestSignInErrorMessage } from '../lib/authErrors';
 import { useAuction } from '../contexts/AuctionContext';
 import {
   Loader2,
@@ -281,7 +282,7 @@ const Lobby = () => {
       await loginAsGuest(guestName);
     } catch (error) {
       console.error('[lobby] Guest sign-in failed', error);
-      setActionError('Could not join as a guest. Please try again.');
+      setActionError(getGuestSignInErrorMessage(error));
     } finally {
       setIsUpdatingSettings(false);
     }

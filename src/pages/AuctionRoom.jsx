@@ -52,6 +52,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import useRoomServer from '../hooks/useRoomServer';
 import { withServerParam } from '../lib/auctionServers';
 import { isHotspotRoomCode } from '../lib/roomCodes';
+import { getCurrentOrderIndex, getUpcomingPlayerSets } from '../lib/auctionSets';
 import useDocumentTitle from '../hooks/useDocumentTitle';
 import {
    clampTimer,
@@ -77,6 +78,8 @@ const AuctionRoom = () => {
       joinAuction,
       joinRoomDb,
       endPlayerAuction,
+      skipUpcomingSet,
+      startUnsoldSet,
       pauseAuction,
       resumeAuction,
       endAuction,
@@ -97,6 +100,7 @@ const AuctionRoom = () => {
    const [selectedTeamId, setSelectedTeamId] = useState(null);
    const [mobileTab, setMobileTab] = useState('arena'); // arena, squad, activity
    const [showSettings, setShowSettings] = useState(false);
+   const [selectedSetToSkip, setSelectedSetToSkip] = useState('');
    const [showParticipantsOverlay, setShowParticipantsOverlay] = useState(false);
    const [showEndConfirm, setShowEndConfirm] = useState(false);
    const [isEnding, setIsEnding] = useState(false);
@@ -430,6 +434,30 @@ const AuctionRoom = () => {
    }, []);
 
    const isAdmin = currentAuction?.hostId === user?.uid;
+   const upcomingSets = useMemo(() => {
+      const order = currentAuction?.playerOrder || Array.from(
+         { length: IPL_PLAYERS.length },
+         (_, index) => index,
+      );
+      const currentIndex = getCurrentOrderIndex(order, displayAuctionState);
+      const deferredSets = new Set(currentAuction?.deferredPlayerSets || []);
+      return getUpcomingPlayerSets(
+         order,
+         currentIndex,
+         currentAuction?.unsoldReturnPlayerIds || [],
+      ).filter(
+         (set) => !deferredSets.has(set.name),
+      );
+   }, [currentAuction?.deferredPlayerSets, currentAuction?.playerOrder, currentAuction?.unsoldReturnPlayerIds, displayAuctionState]);
+   const unsoldPlayerCount = currentAuction?.unsoldPlayerIds?.length || 0;
+   const canStartUnsoldSet =
+      isAdmin &&
+      currentAuction?.status === 'active' &&
+      !currentAuction?.unsoldRoundStarted &&
+      unsoldPlayerCount > 0;
+   const setToSkip = upcomingSets.some((set) => set.name === selectedSetToSkip)
+      ? selectedSetToSkip
+      : upcomingSets[0]?.name || '';
    const currentBid = displayAuctionState?.currentBid || 0;
    const increment = currentBid < 5 ? 0.20 : 0.25;
    const nextBidAmount = currentBid === 0 ? (currentPlayer?.basePrice || 0) : currentBid + increment;
@@ -444,27 +472,45 @@ const AuctionRoom = () => {
       });
 
       const playerOrder = currentAuction?.playerOrder || Array.from({ length: IPL_PLAYERS.length }, (_, i) => i);
-      const currentPlayerId = displayAuctionState?.playerId;
-      const currentPlayerIndexInOrder = playerOrder.indexOf(IPL_PLAYERS.findIndex(p => p.id === currentPlayerId));
+      const currentPlayerIndexInOrder = getCurrentOrderIndex(playerOrder, displayAuctionState);
 
       const upcoming = [];
       const sold = [];
       const unsold = [];
+      const seenUpcoming = new Set();
+      const seenSold = new Set();
+      const seenUnsold = new Set();
+      const upcomingPlayerIds = new Set(
+         playerOrder
+            .slice(Math.max(
+               currentPlayerIndexInOrder +
+                  (['bidding', 'paused'].includes(displayAuctionState?.status) ? 0 : 1),
+               0,
+            ))
+            .map((idx) => IPL_PLAYERS[idx]?.id)
+            .filter(Boolean),
+      );
 
-      playerOrder.forEach((idx, i) => {
+      playerOrder.forEach((idx) => {
          const p = IPL_PLAYERS[idx];
          if (!p) return;
          if (soldIds.has(p.id)) {
+            if (seenSold.has(p.id)) return;
+            seenSold.add(p.id);
             sold.push({ ...p, ...soldWithBids[p.id] });
-         } else if (i < currentPlayerIndexInOrder) {
-            unsold.push(p);
-         } else {
+         } else if (upcomingPlayerIds.has(p.id)) {
+            if (seenUpcoming.has(p.id)) return;
+            seenUpcoming.add(p.id);
             upcoming.push(p);
+         } else {
+            if (seenUnsold.has(p.id)) return;
+            seenUnsold.add(p.id);
+            unsold.push(p);
          }
       });
 
       return { upcoming, sold, unsold };
-   }, [currentAuction?.playerOrder, displayAuctionState?.playerId, roomTeams]);
+   }, [currentAuction?.playerOrder, displayAuctionState, roomTeams]);
 
    const filteredPlayers = useMemo(() => {
       let players = [];
@@ -486,12 +532,14 @@ const AuctionRoom = () => {
       if (activeOverlayTab !== 'upcoming') return null;
       const groups = {};
       filteredPlayers.forEach(p => {
-         const setName = p.set || 'General Pool';
+         const setName = currentAuction?.unsoldReturnPlayerIds?.includes(p.id)
+            ? 'Unsold Set'
+            : p.set || 'General Pool';
          if (!groups[setName]) groups[setName] = [];
          groups[setName].push(p);
       });
       return groups;
-   }, [activeOverlayTab, filteredPlayers]);
+   }, [activeOverlayTab, currentAuction?.unsoldReturnPlayerIds, filteredPlayers]);
 
    useEffect(() => {
       if (!serverReady || !id || !user?.uid) return;
@@ -1014,7 +1062,20 @@ const AuctionRoom = () => {
             <div className="flex items-center gap-1 sm:gap-3 shrink-0">
                {isAdmin && (
                   <div className="flex items-center gap-1 sm:gap-2">
-                     {displayAuctionState?.status === 'paused' ? (
+                     {canStartUnsoldSet && (
+                        <button
+                           onClick={() => startUnsoldSet(id)}
+                           className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-amber-500/15 border border-amber-400/30 rounded-lg text-amber-300 text-[9px] sm:text-[10px] font-black uppercase tracking-wide hover:bg-amber-500/25 transition-colors cursor-pointer whitespace-nowrap"
+                           title={`Bring ${unsoldPlayerCount} unsold player${unsoldPlayerCount === 1 ? '' : 's'} back as one set`}
+                        >
+                           Unsold Set · {unsoldPlayerCount}
+                        </button>
+                     )}
+                     {displayAuctionState?.status === 'awaiting_unsold' ? (
+                        <span className="hidden sm:inline text-[9px] font-black uppercase tracking-wider text-amber-300">
+                           Auction sets complete
+                        </span>
+                     ) : displayAuctionState?.status === 'paused' ? (
                         <button
                            onClick={() => resumeAuction(id)}
                            className="p-1 sm:px-2.5 sm:py-1.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 text-[10px] compact:text-[9px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all cursor-pointer flex items-center gap-1"
@@ -1203,7 +1264,11 @@ const AuctionRoom = () => {
                   <div className="w-full max-w-4xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3 md:gap-4 min-w-0">
                      <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 min-w-0 flex-1">
                         <div className="px-2 sm:px-2.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded-full shrink-0 flex items-center">
-                           <span className="text-[7.5px] sm:text-[9px] compact:text-[8px] font-extrabold text-yellow-400/90 uppercase tracking-widest whitespace-nowrap">{currentPlayer?.set}</span>
+                           <span className="text-[7.5px] sm:text-[9px] compact:text-[8px] font-extrabold text-yellow-400/90 uppercase tracking-widest whitespace-nowrap">
+                              {currentAuction?.unsoldReturnPlayerIds?.includes(currentPlayer?.id)
+                                 ? 'Unsold Set'
+                                 : currentPlayer?.set}
+                           </span>
                         </div>
                         <div className="w-px h-3.5 sm:h-4 bg-white/10 shrink-0" />
                         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
@@ -1771,6 +1836,78 @@ const AuctionRoom = () => {
                            <button onClick={async () => { await updateRoomSettings(id, { ...currentAuction.settings, bidTimer: newTimerValue }); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all mt-3 shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer">
                               Apply Timer Settings
                            </button>
+                        </div>
+                     )}
+
+                     {isAdmin && currentAuction?.status === 'active' && (
+                        <div className="bg-gradient-to-b from-orange-500/[0.06] to-transparent border border-orange-500/20 p-4 rounded-2xl space-y-3">
+                           <div>
+                              <span className="text-[9px] font-black text-orange-300 uppercase tracking-widest">
+                                 Auction Sets · Host
+                              </span>
+                              <p className="mt-1 text-[10px] leading-relaxed text-gray-400">
+                                 Move a remaining set to the back of the queue, or run one Unsold Set during the auction.
+                              </p>
+                           </div>
+
+                           <div className="flex gap-2">
+                              <select
+                                 aria-label="Upcoming set to move to the end"
+                                 value={setToSkip}
+                                 onChange={(event) => setSelectedSetToSkip(event.target.value)}
+                                 disabled={upcomingSets.length === 0}
+                                 className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#15161d] px-3 py-2 text-[10px] font-bold text-white outline-none focus:border-orange-400/50 disabled:opacity-50"
+                              >
+                                 {upcomingSets.length === 0 ? (
+                                    <option value="">No upcoming sets</option>
+                                 ) : (
+                                    upcomingSets.map((set) => (
+                                       <option key={set.name} value={set.name}>
+                                          {set.name} · {set.count} left
+                                       </option>
+                                    ))
+                                 )}
+                              </select>
+                              <button
+                                 type="button"
+                                 disabled={!setToSkip}
+                                 onClick={async () => {
+                                    try {
+                                       const skipped = await skipUpcomingSet(id, setToSkip);
+                                       if (!skipped) throw new Error('That set is no longer available to move.');
+                                       setSelectedSetToSkip('');
+                                    } catch (actionError) {
+                                       setError(actionError.message || 'Could not move that set.');
+                                       setTimeout(() => setError(''), 3500);
+                                    }
+                                 }}
+                                 className="shrink-0 rounded-xl border border-orange-400/20 bg-orange-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-orange-200 transition-colors hover:bg-orange-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                 Move to end
+                              </button>
+                           </div>
+
+                           {canStartUnsoldSet ? (
+                              <button
+                                 type="button"
+                                 onClick={async () => {
+                                    try {
+                                       const started = await startUnsoldSet(id);
+                                       if (!started) throw new Error('The Unsold Set could not be started.');
+                                    } catch (actionError) {
+                                       setError(actionError.message || 'Could not start the Unsold Set.');
+                                       setTimeout(() => setError(''), 3500);
+                                    }
+                                 }}
+                                 className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-amber-200 transition-colors hover:bg-amber-500/20"
+                              >
+                                 Bring back {unsoldPlayerCount} unsold player{unsoldPlayerCount === 1 ? '' : 's'} as a set
+                              </button>
+                           ) : currentAuction?.unsoldRoundStarted ? (
+                              <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">
+                                 The one-time Unsold Set has already been used.
+                              </p>
+                           ) : null}
                         </div>
                      )}
 

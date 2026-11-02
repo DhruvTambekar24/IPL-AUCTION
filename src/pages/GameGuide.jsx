@@ -187,7 +187,7 @@ const GameGuide = () => {
     {
       step: '3',
       title: 'Live paddle bidding & timer',
-      desc: 'Players are presented one by one with star rating, role, and base price. Click "+ Bid" to raise the paddle. When the timer hits zero, the highest bidder secures the player.',
+      desc: 'Players are presented one by one with star rating, role, and base price. Click "+ Bid" to raise the paddle. When the timer hits zero, the highest bidder secures the player. The host can move an upcoming set to the back of the queue or bring unsold players back together as one Unsold Set, once per auction.',
     },
     {
       step: '4',

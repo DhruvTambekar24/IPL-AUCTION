@@ -1,6 +1,11 @@
 import { IPL_PLAYERS } from '../data/players.js';
 import { evaluateBotBid } from './botEngine.js';
 import { toFiniteNumber } from './auctionDisplay.js';
+import {
+  getCurrentOrderIndex,
+  insertUnsoldPlayersAfterCurrent,
+  movePlayerSetToEnd,
+} from './auctionSets.js';
 
 export const TEAMS = [
   { id: 'MI', name: 'Mumbai Indians', color: 'bg-blue-600' },
@@ -476,8 +481,14 @@ export function startLocalAuction(roomId) {
 
   room.status = 'active';
   room.playerOrder = playerOrder;
+  room.currentPlayerOrderIndex = 0;
+  room.deferredPlayerSets = [];
+  room.unsoldPlayerIds = [];
+  room.unsoldReturnPlayerIds = [];
+  room.unsoldRoundStarted = false;
   room.live = {
     playerId: firstPlayer.id,
+    playerOrderIndex: 0,
     currentBid: 0,
     highBidderId: '',
     highBidderName: 'No Bids',
@@ -497,6 +508,97 @@ export function startLocalAuction(roomId) {
   });
 
   writeLocalRoom(roomId, room);
+}
+
+export function skipLocalUpcomingSet(roomId, userId, setName) {
+  const room = readLocalRoom(roomId);
+  if (!room || room.hostId !== userId || room.status !== 'active') return false;
+
+  const order = room.playerOrder || [];
+  const currentIndex = getCurrentOrderIndex(order, room.live);
+  const { order: updatedOrder, movedCount } = movePlayerSetToEnd(
+    order,
+    currentIndex,
+    setName,
+    room.unsoldReturnPlayerIds || [],
+  );
+  if (movedCount === 0) return false;
+
+  room.playerOrder = updatedOrder;
+  room.deferredPlayerSets = [
+    ...new Set([...(room.deferredPlayerSets || []), setName]),
+  ];
+  room.currentPlayerOrderIndex = currentIndex;
+  room.messages = room.messages || [];
+  room.messages.push({
+    id: `msg_skip_set_${Date.now()}`,
+    userId: 'system',
+    userName: 'System',
+    text: `${setName} moved to the end of the auction queue.`,
+    type: 'log',
+    timestamp: Date.now(),
+  });
+  writeLocalRoom(roomId, room);
+  return true;
+}
+
+export function startLocalUnsoldSet(roomId, userId) {
+  const room = readLocalRoom(roomId);
+  if (
+    !room ||
+    room.hostId !== userId ||
+    room.status !== 'active' ||
+    room.unsoldRoundStarted ||
+    !(room.unsoldPlayerIds || []).length
+  ) {
+    return false;
+  }
+
+  const order = room.playerOrder || [];
+  const currentIndex = getCurrentOrderIndex(order, room.live);
+  const { order: updatedOrder, insertedIndices } = insertUnsoldPlayersAfterCurrent(
+    order,
+    currentIndex,
+    room.unsoldPlayerIds,
+  );
+  if (insertedIndices.length === 0) return false;
+
+  room.playerOrder = updatedOrder;
+  room.unsoldReturnPlayerIds = [
+    ...new Set([
+      ...(room.unsoldReturnPlayerIds || []),
+      ...insertedIndices.map((index) => IPL_PLAYERS[index].id),
+    ]),
+  ];
+  room.unsoldPlayerIds = [];
+  room.unsoldRoundStarted = true;
+  room.messages = room.messages || [];
+  room.messages.push({
+    id: `msg_unsold_set_${Date.now()}`,
+    userId: 'system',
+    userName: 'System',
+    text: `The Unsold Set is back in the auction.`,
+    type: 'log',
+    timestamp: Date.now(),
+  });
+
+  if (room.live?.status === 'awaiting_unsold') {
+    const firstIndex = insertedIndices[0];
+    const firstPlayer = IPL_PLAYERS[firstIndex];
+    room.live = {
+      playerId: firstPlayer.id,
+      playerOrderIndex: currentIndex + 1,
+      currentBid: 0,
+      highBidderId: '',
+      highBidderName: 'No Bids',
+      highBidderTeamId: '',
+      timerEndsAt: Date.now() + (room.settings?.bidTimer || 10) * 1000,
+      status: 'bidding',
+    };
+  }
+
+  writeLocalRoom(roomId, room);
+  return true;
 }
 
 /**
@@ -647,6 +749,11 @@ export function endLocalPlayerAuction(roomId) {
       spent: (tData.spent || 0) + room.live.currentBid,
       squad: [...(tData.squad || []), { id: room.live.playerId, bid: room.live.currentBid }],
     };
+  } else {
+    room.unsoldPlayerIds = room.unsoldPlayerIds || [];
+    if (!room.unsoldPlayerIds.includes(room.live.playerId)) {
+      room.unsoldPlayerIds.push(room.live.playerId);
+    }
   }
 
   if (!room.messages) room.messages = [];
@@ -676,16 +783,17 @@ export function endLocalPlayerAuction(roomId) {
     const current = readLocalRoom(roomId);
     if (!current || current.status !== 'active') return;
 
-    const currentPlayerId = current.live.playerId;
     const order = current.playerOrder || Array.from({ length: IPL_PLAYERS.length }, (_, i) => i);
-    const currentIndex = order.findIndex((idx) => IPL_PLAYERS[idx] && IPL_PLAYERS[idx].id === currentPlayerId);
+    const currentIndex = getCurrentOrderIndex(order, current.live);
     const nextIndex = currentIndex !== -1 ? order[currentIndex + 1] : order[0];
 
     if (nextIndex !== undefined && IPL_PLAYERS[nextIndex]) {
       const nextPlayer = IPL_PLAYERS[nextIndex];
       const timerSec = current.settings?.bidTimer || 10;
+      current.currentPlayerOrderIndex = currentIndex + 1;
       current.live = {
         playerId: nextPlayer.id,
+        playerOrderIndex: currentIndex + 1,
         currentBid: 0,
         highBidderId: '',
         highBidderName: 'No Bids',
@@ -693,6 +801,22 @@ export function endLocalPlayerAuction(roomId) {
         timerEndsAt: Date.now() + timerSec * 1000,
         status: 'bidding',
       };
+    } else if (
+      (current.unsoldPlayerIds || []).length > 0 &&
+      !current.unsoldRoundStarted
+    ) {
+      current.live = {
+        ...current.live,
+        status: 'awaiting_unsold',
+      };
+      current.messages.push({
+        id: `msg_await_unsold_${Date.now()}`,
+        userId: 'system',
+        userName: 'System',
+        text: 'All regular sets are complete. The host can start the Unsold Set.',
+        type: 'log',
+        timestamp: Date.now(),
+      });
     } else {
       current.status = 'completed';
       current.live = {

@@ -7,7 +7,7 @@ const GithubStarButton = () => {
   useEffect(() => {
     const fetchStars = async () => {
       try {
-        const response = await fetch('https://api.github.com/repos/Shaurya01836/ipl-auction');
+        const response = await fetch('https://api.github.com/repos/DhruvTambekar24/IPL-AUCTION');
         const data = await response.json();
         if (data.stargazers_count !== undefined) {
           const count = data.stargazers_count;
@@ -29,7 +29,7 @@ const GithubStarButton = () => {
 
   return (
     <a
-      href="https://github.com/Shaurya01836/ipl-auction"
+      href="https://github.com/DhruvTambekar24/IPL-AUCTION"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="View on GitHub"

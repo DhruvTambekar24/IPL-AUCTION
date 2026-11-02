@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { getGuestSignInErrorMessage } from "../lib/authErrors";
 import { useAuction } from "../contexts/AuctionContext";
 import {
   getActiveServer,
@@ -24,6 +25,7 @@ import {
 } from "../lib/auctionServers";
 import { IPL_PLAYERS } from "../data/players";
 import { TEAMS } from "../data/teams";
+import FlowField from "../components/FlowField";
 import {
   Zap,
   Loader2,
@@ -56,6 +58,62 @@ import {
   isOverseasPlayer,
   toFiniteNumber,
 } from "../lib/auctionDisplay";
+
+const LandingHero = () => (
+  <section className="relative isolate mt-8 mb-2 w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/[0.06] bg-gradient-to-b from-white/[0.025] to-transparent px-4 py-8 text-center sm:mt-10 sm:px-8 sm:py-10">
+    <FlowField
+      className="text-orange-100/40"
+      density={0.45}
+      speed={0.55}
+    />
+    <div className="relative z-10">
+      <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/[0.07] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-orange-200 sm:text-[10px]">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-orange-400 opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-400" />
+        </span>
+        Live multiplayer auction
+      </div>
+
+      <h1 className="text-balance">
+        <span className="block bg-gradient-to-b from-white to-white/60 bg-clip-text font-pixel text-2xl leading-none text-transparent sm:text-4xl md:text-5xl lg:text-[64px]">
+          CREATE YOUR
+        </span>
+        <span className="mt-1 block text-balance font-pixel text-4xl uppercase leading-none text-[#ff5500] drop-shadow-[0_4px_12px_rgba(255,85,0,0.2)] sm:text-6xl md:text-7xl lg:text-[88px]">
+          AUCTION ROOM
+        </span>
+      </h1>
+
+      <p className="mx-auto mt-4 max-w-xl px-1 text-[13px] font-medium leading-relaxed text-gray-300 sm:text-sm">
+        Bring your friends together, compete for the biggest IPL stars, and
+        build a championship squad in a live, real-time auction.
+      </p>
+
+      <ol
+        aria-label="How it works"
+        className="mx-auto mt-6 flex max-w-2xl flex-wrap items-center justify-center gap-x-3 gap-y-3 text-[9px] font-black uppercase tracking-wider text-gray-300 sm:gap-x-6 sm:text-[10px] sm:tracking-widest"
+      >
+        {["Create a room", "Invite friends", "Start bidding"].map(
+          (step, index) => (
+            <li key={step} className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[9px] text-orange-300">
+                0{index + 1}
+              </span>
+              <span>{step}</span>
+              {index < 2 && (
+                <ChevronRight
+                  aria-hidden="true"
+                  size={13}
+                  className="ml-1 text-gray-600"
+                />
+              )}
+            </li>
+          ),
+        )}
+      </ol>
+    </div>
+  </section>
+);
 
 const LandingPage = () => {
   useDocumentTitle(
@@ -427,9 +485,10 @@ const LandingPage = () => {
     try {
       await loginAsGuest(guestName.trim());
       setIsSubmitting(false);
-    } catch {
-      setError("Guest login failed. Ensure Anonymous Auth is enabled.");
-      setTimeout(() => setError(""), 3000);
+    } catch (error) {
+      console.error('[auth] Guest sign-in failed', error);
+      setError(getGuestSignInErrorMessage(error));
+      setTimeout(() => setError(""), 6000);
       setIsSubmitting(false);
     }
   };
@@ -546,38 +605,7 @@ const LandingPage = () => {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[url('https://res.cloudinary.com/drl6ky9as/image/upload/v1792012081/texture_os1ukf.jpg')] opacity-[0.25]" />
         </div>
 
-        <div className="text-center mb-4 z-10 relative max-w-3xl px-4 mt-10">
-          <h1 className="sr-only">
-            IPL Auction Simulator & Game - Live IPL Mega Auction 2026
-          </h1>
-          <div className="text-2xl sm:text-4xl md:text-5xl lg:text-[64px] font-pixel leading-none text-balance bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
-            CREATE YOUR
-          </div>
-          <div className="text-4xl sm:text-6xl md:text-7xl lg:text-[88px] font-pixel text-[#ff5500] leading-none uppercase text-balance mt-1 drop-shadow-[0_4px_12px_rgba(255,85,0,0.2)]">
-            AUCTION ROOM
-          </div>
-
-          <p className="text-[13px] sm:text-sm text-gray-400 font-medium max-w-xl mx-auto mt-3.5 leading-relaxed px-1">
-            The ultimate multiplayer IPL auction simulator and game. Host live
-            IPL mega auctions with friends in real-time, choose your favorite
-            franchise, bid strategically, and build a championship T20 squad.
-          </p>
-
-          {/* Three-step visual story */}
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 sm:gap-x-6 mt-5 px-2 text-[9px] sm:text-[10px] font-black tracking-wider sm:tracking-widest text-gray-400 uppercase select-none">
-            <span className="hover:text-orange-500/80 transition-colors">
-              ① Create Room
-            </span>
-            <span className="text-gray-800">➔</span>
-            <span className="hover:text-orange-500/80 transition-colors">
-              ② Invite Friends
-            </span>
-            <span className="text-gray-800">➔</span>
-            <span className="hover:text-orange-500/80 transition-colors">
-              ③ Start Bidding
-            </span>
-          </div>
-        </div>
+        <LandingHero />
 
         {/* Subtle gradient line / Faded Divider */}
         <div className="w-full max-w-4xl h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-4 mt-10 z-10 relative" />
@@ -741,39 +769,7 @@ const LandingPage = () => {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[url('https://res.cloudinary.com/drl6ky9as/image/upload/v1792012081/texture_os1ukf.jpg')] opacity-[0.25]" />
       </div>
 
-      {/* Hero */}
-      <div className="text-center mb-4 z-10 relative max-w-3xl px-4 mt-10">
-        <h1 className="sr-only">
-          IPL Auction Simulator & Game - Live IPL Mega Auction 2026
-        </h1>
-        <div className="text-2xl sm:text-4xl md:text-5xl lg:text-[64px] font-pixel leading-none text-balance bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
-          CREATE YOUR
-        </div>
-        <div className="text-4xl sm:text-6xl md:text-7xl lg:text-[88px] font-pixel text-[#ff5500] leading-none uppercase text-balance mt-1 drop-shadow-[0_4px_12px_rgba(255,85,0,0.2)]">
-          AUCTION ROOM
-        </div>
-
-        <p className="text-[13px] sm:text-sm text-gray-400 font-pixel max-w-xl mx-auto mt-3.5 leading-relaxed px-1">
-          The ultimate multiplayer IPL auction simulator and game. Host live IPL
-          mega auctions with friends in real-time, choose your favorite
-          franchise, bid strategically, and build a championship T20 squad.
-        </p>
-
-        {/* Three-step visual story */}
-        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 sm:gap-x-6 mt-5 px-2 text-[9px] sm:text-[10px] font-black tracking-wider sm:tracking-widest text-gray-400 uppercase select-none">
-          <span className="hover:text-orange-500/80 transition-colors">
-            ① Create Room
-          </span>
-          <span className="text-gray-800">➔</span>
-          <span className="hover:text-orange-500/80 transition-colors">
-            ② Invite Friends
-          </span>
-          <span className="text-gray-800">➔</span>
-          <span className="hover:text-orange-500/80 transition-colors">
-            ③ Start Bidding
-          </span>
-        </div>
-      </div>
+      <LandingHero />
 
       {/* Subtle gradient line / Faded Divider */}
       <div className="w-full max-w-4xl h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-4 mt-10 z-10 relative" />

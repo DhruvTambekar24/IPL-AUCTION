@@ -46,6 +46,11 @@ import {
 } from '../lib/auctionServerDirectory';
 import { isHotspotRoomCode } from '../lib/roomCodes';
 import {
+  getCurrentOrderIndex,
+  insertUnsoldPlayersAfterCurrent,
+  movePlayerSetToEnd,
+} from '../lib/auctionSets';
+import {
   createLocalRoom,
   joinLocalRoomDb as joinLocalRoomDbEngine,
   subscribeLocalRoom,
@@ -53,6 +58,8 @@ import {
   fillLocalEmptyTeamsWithBots as fillLocalEmptyTeamsWithBotsEngine,
   removeLocalBotTeam as removeLocalBotTeamEngine,
   startLocalAuction as startLocalAuctionEngine,
+  skipLocalUpcomingSet as skipLocalUpcomingSetEngine,
+  startLocalUnsoldSet as startLocalUnsoldSetEngine,
   placeLocalBid as placeLocalBidEngine,
   endLocalPlayerAuction as endLocalPlayerAuctionEngine,
   pauseLocalAuction as pauseLocalAuctionEngine,
@@ -461,7 +468,12 @@ export const AuctionProvider = ({ children }) => {
     // Store playerOrder in the Supabase-backed room state and directory.
     await updateRtdb(rtdbRoomRef, {
       status: 'active',
-      playerOrder: randomizedIndices
+      playerOrder: randomizedIndices,
+      currentPlayerOrderIndex: 0,
+      deferredPlayerSets: [],
+      unsoldPlayerIds: [],
+      unsoldReturnPlayerIds: [],
+      unsoldRoundStarted: false,
     });
 
     if (supabase) {
@@ -482,6 +494,7 @@ export const AuctionProvider = ({ children }) => {
     const liveRef = ref(rtdb, `auctions/${roomId}/live`);
     await set(liveRef, {
       playerId: IPL_PLAYERS[randomizedIndices[0]].id,
+      playerOrderIndex: 0,
       currentBid: 0,
       highBidderId: '',
       highBidderName: 'No Bids',
@@ -500,6 +513,127 @@ export const AuctionProvider = ({ children }) => {
     });
 
   }, [getSyncedTime]);
+
+  const skipUpcomingSet = useCallback(async (roomId, setName) => {
+    if (!user || !currentAuction || currentAuction.hostId !== user.uid) return false;
+    if (isHotspotRoomCode(roomId) || currentAuction.server === 'local') {
+      return skipLocalUpcomingSetEngine(roomId, user.uid, setName);
+    }
+
+    const roomRef = ref(rtdb, `auctions/${roomId}/room`);
+    const [roomSnap, liveSnap] = await Promise.all([
+      get(roomRef),
+      get(ref(rtdb, `auctions/${roomId}/live`)),
+    ]);
+    if (!roomSnap.exists() || !liveSnap.exists()) return false;
+
+    const roomData = roomSnap.val();
+    const live = liveSnap.val();
+    if (roomData.status !== 'active') return false;
+    const order = roomData.playerOrder || [];
+    const currentIndex = getCurrentOrderIndex(order, live);
+    const { order: updatedOrder, movedCount } = movePlayerSetToEnd(
+      order,
+      currentIndex,
+      setName,
+      roomData.unsoldReturnPlayerIds || [],
+    );
+    if (movedCount === 0) return false;
+
+    await Promise.all([
+      updateRtdb(roomRef, {
+        playerOrder: updatedOrder,
+        currentPlayerOrderIndex: currentIndex,
+        deferredPlayerSets: [
+          ...new Set([...(roomData.deferredPlayerSets || []), setName]),
+        ],
+      }),
+      set(ref(rtdb, `auctions/${roomId}/playerOrder`), updatedOrder),
+      push(ref(rtdb, `auctions/${roomId}/messages`), {
+        userId: 'system',
+        userName: 'System',
+        text: `${setName} moved to the end of the auction queue.`,
+        type: 'log',
+        timestamp: serverTimestampRtdb(),
+      }),
+    ]);
+    return true;
+  }, [currentAuction, user]);
+
+  const startUnsoldSet = useCallback(async (roomId) => {
+    if (!user || !currentAuction || currentAuction.hostId !== user.uid) return false;
+    if (isHotspotRoomCode(roomId) || currentAuction.server === 'local') {
+      return startLocalUnsoldSetEngine(roomId, user.uid);
+    }
+
+    const roomRef = ref(rtdb, `auctions/${roomId}/room`);
+    const [roomSnap, liveSnap] = await Promise.all([
+      get(roomRef),
+      get(ref(rtdb, `auctions/${roomId}/live`)),
+    ]);
+    if (!roomSnap.exists() || !liveSnap.exists()) return false;
+
+    const roomData = roomSnap.val();
+    const live = liveSnap.val();
+    const unsoldPlayerIds = roomData.unsoldPlayerIds || [];
+    if (
+      roomData.status !== 'active' ||
+      roomData.unsoldRoundStarted ||
+      unsoldPlayerIds.length === 0
+    ) {
+      return false;
+    }
+
+    const order = roomData.playerOrder || [];
+    const currentIndex = getCurrentOrderIndex(order, live);
+    const { order: updatedOrder, insertedIndices } = insertUnsoldPlayersAfterCurrent(
+      order,
+      currentIndex,
+      unsoldPlayerIds,
+    );
+    if (insertedIndices.length === 0) return false;
+
+    const updates = {
+      playerOrder: updatedOrder,
+      currentPlayerOrderIndex: currentIndex,
+      unsoldReturnPlayerIds: [
+        ...new Set([
+          ...(roomData.unsoldReturnPlayerIds || []),
+          ...insertedIndices.map((index) => IPL_PLAYERS[index].id),
+        ]),
+      ],
+      unsoldPlayerIds: [],
+      unsoldRoundStarted: true,
+    };
+    const writes = [
+      updateRtdb(roomRef, updates),
+      set(ref(rtdb, `auctions/${roomId}/playerOrder`), updatedOrder),
+      push(ref(rtdb, `auctions/${roomId}/messages`), {
+        userId: 'system',
+        userName: 'System',
+        text: 'The Unsold Set is back in the auction.',
+        type: 'log',
+        timestamp: serverTimestampRtdb(),
+      }),
+    ];
+
+    if (live.status === 'awaiting_unsold') {
+      const firstIndex = insertedIndices[0];
+      writes.push(set(ref(rtdb, `auctions/${roomId}/live`), {
+        playerId: IPL_PLAYERS[firstIndex].id,
+        playerOrderIndex: currentIndex + 1,
+        currentBid: 0,
+        highBidderId: '',
+        highBidderName: 'No Bids',
+        highBidderTeamId: '',
+        timerEndsAt: getSyncedTime() + (roomData.settings?.bidTimer || 10) * 1000,
+        status: 'bidding',
+      }));
+    }
+
+    await Promise.all(writes);
+    return true;
+  }, [currentAuction, getSyncedTime, user]);
 
   const endPlayerAuction = useCallback(async (roomId) => {
     if (isHotspotRoomCode(roomId) || currentAuction?.server === 'local') {
@@ -609,6 +743,14 @@ export const AuctionProvider = ({ children }) => {
       if (updatedPlayers) {
         syncPromises.push(updateRtdb(ref(rtdb, `auctions/${roomId}/room`), { players: updatedPlayers }));
       }
+      if (!isSold && rtdbRoomSnap.exists()) {
+        const unsoldPlayerIds = roomData.unsoldPlayerIds || [];
+        if (!unsoldPlayerIds.includes(auctionState.playerId)) {
+          syncPromises.push(updateRtdb(ref(rtdb, `auctions/${roomId}/room`), {
+            unsoldPlayerIds: [...unsoldPlayerIds, auctionState.playerId],
+          }));
+        }
+      }
       if (newTeamData && teamDocId) {
         syncPromises.push(updateRtdb(ref(rtdb, `auctions/${roomId}/teams/${teamDocId}`), newTeamData));
       }
@@ -641,23 +783,43 @@ export const AuctionProvider = ({ children }) => {
       // Previously, component unmount before timeout fired left the ref stuck at true forever.
       const advanceToNextPlayer = async () => {
         try {
-          if (roomData.status !== 'active') return;
+          const latestRoomSnap = await get(ref(rtdb, `auctions/${roomId}/room`));
+          const latestRoom = latestRoomSnap.exists() ? latestRoomSnap.val() : roomData;
+          if (latestRoom.status !== 'active') return;
 
-          const settings = roomData.settings;
-          const currentPlayerId = auctionState.playerId;
-          const order = playerOrder || Array.from({ length: IPL_PLAYERS.length }, (_, i) => i);
-          const currentPlayerIndexInOrder = order.findIndex(idx => IPL_PLAYERS[idx] && IPL_PLAYERS[idx].id === currentPlayerId);
+          const settings = latestRoom.settings;
+          const order = latestRoom.playerOrder || playerOrder || Array.from({ length: IPL_PLAYERS.length }, (_, i) => i);
+          const currentPlayerIndexInOrder = getCurrentOrderIndex(order, auctionState);
           const nextIndexInOrder = currentPlayerIndexInOrder !== -1 ? order[currentPlayerIndexInOrder + 1] : order[0];
 
           if (nextIndexInOrder !== undefined && IPL_PLAYERS[nextIndexInOrder]) {
             const nextPlayer = IPL_PLAYERS[nextIndexInOrder];
+            await updateRtdb(ref(rtdb, `auctions/${roomId}/room`), {
+              currentPlayerOrderIndex: currentPlayerIndexInOrder + 1,
+            });
             await set(liveRef, {
               playerId: nextPlayer.id,
+              playerOrderIndex: currentPlayerIndexInOrder + 1,
               currentBid: 0,
               highBidderId: '',
               highBidderName: 'No Bids',
               timerEndsAt: getSyncedTime() + (settings?.bidTimer || 10) * 1000,
               status: 'bidding'
+            });
+          } else if (
+            (latestRoom.unsoldPlayerIds || []).length > 0 &&
+            !latestRoom.unsoldRoundStarted
+          ) {
+            await set(liveRef, {
+              ...auctionState,
+              status: 'awaiting_unsold',
+            });
+            await push(ref(rtdb, `auctions/${roomId}/messages`), {
+              userId: 'system',
+              userName: 'System',
+              text: 'All regular sets are complete. The host can start the Unsold Set.',
+              type: 'log',
+              timestamp: serverTimestampRtdb(),
             });
           } else {
             // Flush final completed status & all teams to Supabase once at end of auction!
@@ -1772,6 +1934,8 @@ export const AuctionProvider = ({ children }) => {
     updatePlayerTeam,
     updateRoomSettings,
     startAuction,
+    skipUpcomingSet,
+    startUnsoldSet,
     endPlayerAuction,
     pauseAuction,
     resumeAuction,
