@@ -473,7 +473,6 @@ export const AuctionProvider = ({ children }) => {
       deferredPlayerSets: [],
       unsoldPlayerIds: [],
       unsoldReturnPlayerIds: [],
-      unsoldRoundStarted: false,
     });
 
     if (supabase) {
@@ -576,11 +575,7 @@ export const AuctionProvider = ({ children }) => {
     const roomData = roomSnap.val();
     const live = liveSnap.val();
     const unsoldPlayerIds = roomData.unsoldPlayerIds || [];
-    if (
-      roomData.status !== 'active' ||
-      roomData.unsoldRoundStarted ||
-      unsoldPlayerIds.length === 0
-    ) {
+    if (roomData.status !== 'active' || unsoldPlayerIds.length === 0) {
       return false;
     }
 
@@ -603,7 +598,6 @@ export const AuctionProvider = ({ children }) => {
         ]),
       ],
       unsoldPlayerIds: [],
-      unsoldRoundStarted: true,
     };
     const writes = [
       updateRtdb(roomRef, updates),
@@ -807,8 +801,7 @@ export const AuctionProvider = ({ children }) => {
               status: 'bidding'
             });
           } else if (
-            (latestRoom.unsoldPlayerIds || []).length > 0 &&
-            !latestRoom.unsoldRoundStarted
+            (latestRoom.unsoldPlayerIds || []).length > 0
           ) {
             await set(liveRef, {
               ...auctionState,
@@ -817,7 +810,7 @@ export const AuctionProvider = ({ children }) => {
             await push(ref(rtdb, `auctions/${roomId}/messages`), {
               userId: 'system',
               userName: 'System',
-              text: 'All regular sets are complete. The host can start the Unsold Set.',
+              text: 'All players in the queue have been auctioned. The host can start another Unsold Set.',
               type: 'log',
               timestamp: serverTimestampRtdb(),
             });

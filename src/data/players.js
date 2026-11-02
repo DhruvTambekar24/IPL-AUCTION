@@ -4897,5 +4897,239 @@ export const IPL_PLAYERS = [
       "sr": 0
     },
     "rating": 2
+  },
+  {
+    "id": "p_922",
+    "name": "Sachin Tendulkar",
+    "role": "Batsman",
+    "type": "Indian",
+    "country": "IND",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Sachin_Tendulkar.jpg",
+    "stats": {
+      "matches": 78,
+      "runs": 2334,
+      "avg": 33.83,
+      "sr": 119.82,
+      "hs": "100*"
+    },
+    "rating": 89
+  },
+  {
+    "id": "p_923",
+    "name": "Kieron Pollard",
+    "role": "All-Rounder",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Kieron_Pollard.jpg",
+    "stats": {
+      "matches": 189,
+      "runs": 3412,
+      "avg": 28.67,
+      "sr": 147.32,
+      "hs": "87*",
+      "wickets": 69,
+      "econ": 8.79,
+      "bb": "4/44"
+    },
+    "rating": 87
+  },
+  {
+    "id": "p_924",
+    "name": "Ricky Ponting",
+    "role": "Batsman",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Ricky_Ponting.jpg",
+    "stats": {
+      "matches": 10,
+      "runs": 91,
+      "avg": 10.11,
+      "sr": 71.09,
+      "hs": "28"
+    },
+    "rating": 72
+  },
+  {
+    "id": "p_925",
+    "name": "Andre Russell",
+    "role": "All-Rounder",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Andre_Russell.jpg",
+    "stats": {
+      "matches": 140,
+      "runs": 2651,
+      "avg": 28.2,
+      "sr": 174.18,
+      "hs": "88*",
+      "wickets": 123,
+      "econ": 9.55,
+      "bb": "5/15"
+    },
+    "rating": 88
+  },
+  {
+    "id": "p_926",
+    "name": "Dwayne Bravo",
+    "role": "All-Rounder",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Dwayne_Bravo.jpg",
+    "stats": {
+      "matches": 161,
+      "runs": 1560,
+      "avg": 22.61,
+      "sr": 129.57,
+      "hs": "70",
+      "wickets": 183,
+      "econ": 8.39,
+      "bb": "4/22"
+    },
+    "rating": 85
+  },
+  {
+    "id": "p_927",
+    "name": "Brendon McCullum",
+    "role": "Wicket-Keeper",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Brendon_McCullum.jpg",
+    "stats": {
+      "matches": 96,
+      "runs": 2523,
+      "avg": 27.73,
+      "sr": 132.03,
+      "hs": "158"
+    },
+    "rating": 87
+  },
+  {
+    "id": "p_928",
+    "name": "Chris Gayle",
+    "role": "Batsman",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Chris_Gayle.jpg",
+    "stats": {
+      "matches": 142,
+      "runs": 4965,
+      "avg": 39.72,
+      "sr": 148.96,
+      "hs": "175*",
+      "wickets": 18
+    },
+    "rating": 89
+  },
+  {
+    "id": "p_929",
+    "name": "AB de Villiers",
+    "role": "Wicket-Keeper",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/AB_de_Villiers.jpg",
+    "stats": {
+      "matches": 184,
+      "runs": 5162,
+      "avg": 39.71,
+      "sr": 151.69,
+      "hs": "133*"
+    },
+    "rating": 89
+  },
+  {
+    "id": "p_930",
+    "name": "Yuvraj Singh",
+    "role": "All-Rounder",
+    "type": "Indian",
+    "country": "IND",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Yuvraj_Singh.jpg",
+    "stats": {
+      "matches": 132,
+      "runs": 2750,
+      "avg": 24.77,
+      "sr": 129.72,
+      "hs": "83",
+      "wickets": 36,
+      "econ": 7.44,
+      "bb": "4/29"
+    },
+    "rating": 86
+  },
+  {
+    "id": "p_931",
+    "name": "Lasith Malinga",
+    "role": "Bowler",
+    "type": "Overseas",
+    "country": "OS",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Lasith_Malinga.jpg",
+    "stats": {
+      "matches": 122,
+      "wickets": 170,
+      "econ": 7.14,
+      "avg": 19.8,
+      "bb": "5/13"
+    },
+    "rating": 87
+  },
+  {
+    "id": "p_932",
+    "name": "Suresh Raina",
+    "role": "Batsman",
+    "type": "Indian",
+    "country": "IND",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Suresh_Raina.jpg",
+    "stats": {
+      "matches": 205,
+      "runs": 5528,
+      "avg": 32.51,
+      "sr": 136.73,
+      "hs": "100*",
+      "wickets": 25,
+      "econ": 7.39
+    },
+    "rating": 82
+  },
+  {
+    "id": "p_933",
+    "name": "Harbhajan Singh",
+    "role": "Bowler",
+    "type": "Indian",
+    "country": "IND",
+    "basePrice": 2,
+    "set": "Legends Set",
+    "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Harbhajan_Singh.jpg",
+    "stats": {
+      "matches": 163,
+      "runs": 833,
+      "sr": 137.92,
+      "hs": "64",
+      "wickets": 150,
+      "econ": 7.08,
+      "avg": 26.87,
+      "bb": "5/18"
+    },
+    "rating": 81
   }
 ];

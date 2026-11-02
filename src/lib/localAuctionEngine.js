@@ -485,7 +485,6 @@ export function startLocalAuction(roomId) {
   room.deferredPlayerSets = [];
   room.unsoldPlayerIds = [];
   room.unsoldReturnPlayerIds = [];
-  room.unsoldRoundStarted = false;
   room.live = {
     playerId: firstPlayer.id,
     playerOrderIndex: 0,
@@ -548,7 +547,6 @@ export function startLocalUnsoldSet(roomId, userId) {
     !room ||
     room.hostId !== userId ||
     room.status !== 'active' ||
-    room.unsoldRoundStarted ||
     !(room.unsoldPlayerIds || []).length
   ) {
     return false;
@@ -571,7 +569,6 @@ export function startLocalUnsoldSet(roomId, userId) {
     ]),
   ];
   room.unsoldPlayerIds = [];
-  room.unsoldRoundStarted = true;
   room.messages = room.messages || [];
   room.messages.push({
     id: `msg_unsold_set_${Date.now()}`,
@@ -802,8 +799,7 @@ export function endLocalPlayerAuction(roomId) {
         status: 'bidding',
       };
     } else if (
-      (current.unsoldPlayerIds || []).length > 0 &&
-      !current.unsoldRoundStarted
+      (current.unsoldPlayerIds || []).length > 0
     ) {
       current.live = {
         ...current.live,
@@ -813,7 +809,7 @@ export function endLocalPlayerAuction(roomId) {
         id: `msg_await_unsold_${Date.now()}`,
         userId: 'system',
         userName: 'System',
-        text: 'All regular sets are complete. The host can start the Unsold Set.',
+        text: 'All players in the queue have been auctioned. The host can start another Unsold Set.',
         type: 'log',
         timestamp: Date.now(),
       });

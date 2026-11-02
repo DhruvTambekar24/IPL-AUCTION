@@ -453,7 +453,6 @@ const AuctionRoom = () => {
    const canStartUnsoldSet =
       isAdmin &&
       currentAuction?.status === 'active' &&
-      !currentAuction?.unsoldRoundStarted &&
       unsoldPlayerCount > 0;
    const setToSkip = upcomingSets.some((set) => set.name === selectedSetToSkip)
       ? selectedSetToSkip
@@ -1846,7 +1845,7 @@ const AuctionRoom = () => {
                                  Auction Sets · Host
                               </span>
                               <p className="mt-1 text-[10px] leading-relaxed text-gray-400">
-                                 Move a remaining set to the back of the queue, or run one Unsold Set during the auction.
+                                 Move a remaining set to the back of the queue, or revisit unsold players as often as needed.
                               </p>
                            </div>
 
@@ -1903,10 +1902,6 @@ const AuctionRoom = () => {
                               >
                                  Bring back {unsoldPlayerCount} unsold player{unsoldPlayerCount === 1 ? '' : 's'} as a set
                               </button>
-                           ) : currentAuction?.unsoldRoundStarted ? (
-                              <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">
-                                 The one-time Unsold Set has already been used.
-                              </p>
                            ) : null}
                         </div>
                      )}

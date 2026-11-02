@@ -37,6 +37,17 @@ test('getUpcomingPlayerSets counts remaining entries by set', () => {
   );
 });
 
+test('Legends Set players are included in auction set counts', () => {
+  const legendsIndices = IPL_PLAYERS.flatMap((player, index) =>
+    player.set === 'Legends Set' ? [index] : [],
+  );
+
+  assert.equal(legendsIndices.length, 12);
+  assert.deepEqual(getUpcomingPlayerSets(legendsIndices, -1), [
+    { name: 'Legends Set', count: 12 },
+  ]);
+});
+
 test('returned players are grouped under the Unsold Set label', () => {
   const returnedPlayerId = IPL_PLAYERS[2].id;
 

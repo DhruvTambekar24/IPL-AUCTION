@@ -13,7 +13,7 @@
   Evaluate your drafted squad using the advanced Franchise Strength rating system.<br />
   Experience real-time bidding backed by Supabase PostgreSQL and Realtime.
 
-  [Play Now](https://crickauction.in) • [Documentation](#documentation) • [Releases](https://github.com/Shaurya01836/ipl-auction/releases) • [Contributing](#develop-and-contribute)
+  [Play Now](https://ipl-auction-wl1x.vercel.app/) • [Documentation](#documentation) • [Releases](https://github.com/DhruvTambekar24/IPL-AUCTION/releases) • [Contributing](#develop-and-contribute)
   <br />
   <br />
 </div>

@@ -118,7 +118,7 @@ test('host can move an upcoming local set to the end of the player queue', () =>
   assert.equal(after.messages.at(-1).text, `${setName} moved to the end of the auction queue.`);
 });
 
-test('host can start one local Unsold Set immediately after the current player', () => {
+test('host can revisit local Unsold Set players multiple times', () => {
   const roomId = 'HOTSPOT-UNSOLD1';
   createLocalRoom(roomId, 'user_host', { name: 'Host', team: 'MI' });
   const room = readLocalRoom(roomId);
@@ -131,7 +131,7 @@ test('host can start one local Unsold Set immediately after the current player',
     timerEndsAt: Date.now() + 10000,
   };
   room.unsoldPlayerIds = [IPL_PLAYERS[4].id, IPL_PLAYERS[5].id];
-  room.unsoldRoundStarted = false;
+  room.unsoldRoundStarted = true;
   writeLocalRoom(roomId, room);
 
   assert.equal(startLocalUnsoldSet(roomId, 'guest'), false);
@@ -141,8 +141,31 @@ test('host can start one local Unsold Set immediately after the current player',
   assert.deepEqual(after.playerOrder, [0, 4, 5, 1, 2, 3]);
   assert.deepEqual(after.unsoldReturnPlayerIds, [IPL_PLAYERS[4].id, IPL_PLAYERS[5].id]);
   assert.deepEqual(after.unsoldPlayerIds, []);
-  assert.equal(after.unsoldRoundStarted, true);
   assert.equal(startLocalUnsoldSet(roomId, 'user_host'), false);
+
+  after.live = {
+    playerId: IPL_PLAYERS[4].id,
+    playerOrderIndex: 1,
+    status: 'unsold',
+  };
+  after.unsoldPlayerIds = [IPL_PLAYERS[4].id];
+  writeLocalRoom(roomId, after);
+
+  assert.equal(startLocalUnsoldSet(roomId, 'user_host'), true);
+  const secondReturn = readLocalRoom(roomId);
+  assert.deepEqual(secondReturn.playerOrder, [0, 4, 4, 5, 1, 2, 3]);
+  assert.deepEqual(secondReturn.unsoldPlayerIds, []);
+
+  secondReturn.live = {
+    playerId: IPL_PLAYERS[4].id,
+    playerOrderIndex: 2,
+    status: 'unsold',
+  };
+  secondReturn.unsoldPlayerIds = [IPL_PLAYERS[4].id];
+  writeLocalRoom(roomId, secondReturn);
+
+  assert.equal(startLocalUnsoldSet(roomId, 'user_host'), true);
+  assert.deepEqual(readLocalRoom(roomId).playerOrder, [0, 4, 4, 4, 5, 1, 2, 3]);
 });
 
 test('placeLocalBid updates currentBid, highBidder, and extends timer', () => {
